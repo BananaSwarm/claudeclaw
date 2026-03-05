@@ -231,7 +231,7 @@ async function execClaude(name: string, prompt: string): Promise<RunResult> {
   const securityArgs = buildSecurityArgs(security);
 
   console.log(
-    `[${new Date().toLocaleTimeString()}] Running: ${name} (${isNew ? "new session" : `resume ${existing.sessionId.slice(0, 8)}`}, security: ${security.level})`
+    `[${new Date().toLocaleTimeString()}] Running: ${name} (${isNew ? "new session" : `resume ${existing.sessionId?.slice(0, 8) ?? "unknown"}`}, security: ${security.level})`
   );
 
   // New session: use json output to capture Claude's session_id
@@ -298,15 +298,24 @@ async function execClaude(name: string, prompt: string): Promise<RunResult> {
     stdout = rateLimitMessage;
   }
 
-  // For new sessions, parse the JSON to extract session_id and result text
+  // For new sessions, parse the JSON to extract session_id and result text.
+  // Claude CLI --output-format json returns a JSON array of streaming events:
+  //   [{type:"system", session_id, ...}, {type:"assistant", ...}, {type:"result", session_id, result, ...}]
   if (!rateLimitMessage && isNew && exitCode === 0) {
     try {
       const json = JSON.parse(rawStdout);
-      sessionId = json.session_id;
-      stdout = json.result ?? "";
+      const events = Array.isArray(json) ? json : [json];
+      const resultEvent = events.find((e: any) => e.type === "result");
+      const initEvent = events.find((e: any) => e.type === "system" && e.subtype === "init");
+      sessionId = resultEvent?.session_id ?? initEvent?.session_id;
+      stdout = resultEvent?.result ?? "";
       // Save the real session ID from Claude Code
-      await createSession(sessionId);
-      console.log(`[${new Date().toLocaleTimeString()}] Session created: ${sessionId}`);
+      if (sessionId) {
+        await createSession(sessionId);
+        console.log(`[${new Date().toLocaleTimeString()}] Session created: ${sessionId}`);
+      } else {
+        console.error(`[${new Date().toLocaleTimeString()}] Claude returned no session_id`);
+      }
     } catch (e) {
       console.error(`[${new Date().toLocaleTimeString()}] Failed to parse session from Claude output:`, e);
     }

@@ -30,7 +30,7 @@ async function saveSession(session: GlobalSession): Promise<void> {
 /** Returns the existing session or null. Never creates one. */
 export async function getSession(): Promise<{ sessionId: string } | null> {
   const existing = await loadSession();
-  if (existing) {
+  if (existing && existing.sessionId) {
     existing.lastUsedAt = new Date().toISOString();
     await saveSession(existing);
     return { sessionId: existing.sessionId };
