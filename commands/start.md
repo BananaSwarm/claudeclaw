@@ -100,9 +100,11 @@ Start the heartbeat daemon for this project. Follow these steps exactly:
    Update `.claude/claudeclaw/settings.json` with their answers.
 
 6. **Launch/start action**:
+   First, resolve the ClaudeClaw plugin install path by reading `~/.claude/plugins/installed_plugins.json` — find the entry key containing `claudeclaw` and use its `installPath` value. Then launch:
    ```bash
-   mkdir -p .claude/claudeclaw/logs && nohup bun run ${CLAUDE_PLUGIN_ROOT}/src/index.ts start --web > .claude/claudeclaw/logs/daemon.log 2>&1 & echo $!
+   mkdir -p .claude/claudeclaw/logs && PLUGIN_ROOT="<resolved installPath>" && nohup bun run "$PLUGIN_ROOT/src/index.ts" start --web > .claude/claudeclaw/logs/daemon.log 2>&1 & echo $!
    ```
+   Replace `<resolved installPath>` with the actual path from the registry lookup.
    Use the description "Starting ClaudeClaw server" for this command.
    Wait 1 second, then check `cat .claude/claudeclaw/logs/daemon.log`. If it contains "Aborted: daemon already running", tell the user and exit.
    - Read `.claude/claudeclaw/settings.json` for `web.port` (default `4632` if missing) and `web.host` (default `127.0.0.1`).

@@ -2,13 +2,14 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
 import { getSession, createSession } from "./sessions";
-import { getSettings, type ModelConfig, type SecurityConfig } from "./config";
+import { getSettings, getPluginRoot, type ModelConfig, type SecurityConfig } from "./config";
 import { buildClockPromptPrefix } from "./timezone";
 
 const LOGS_DIR = join(process.cwd(), ".claude/claudeclaw/logs");
-// Resolve prompts relative to the claudeclaw installation, not the project dir
-const PROMPTS_DIR = join(import.meta.dir, "..", "prompts");
-const HEARTBEAT_PROMPT_FILE = join(PROMPTS_DIR, "heartbeat", "HEARTBEAT.md");
+
+function getPromptsDir(): string {
+  return join(getPluginRoot(), "prompts");
+}
 const PROJECT_CLAUDE_MD = join(process.cwd(), "CLAUDE.md");
 const LEGACY_PROJECT_CLAUDE_MD = join(process.cwd(), ".claude", "CLAUDE.md");
 const CLAUDECLAW_BLOCK_START = "<!-- claudeclaw:managed:start -->";
@@ -184,10 +185,11 @@ function buildSecurityArgs(security: SecurityConfig): string[] {
 
 /** Load and concatenate all prompt files from the prompts/ directory. */
 async function loadPrompts(): Promise<string> {
+  const promptsDir = getPromptsDir();
   const selectedPromptFiles = [
-    join(PROMPTS_DIR, "IDENTITY.md"),
-    join(PROMPTS_DIR, "USER.md"),
-    join(PROMPTS_DIR, "SOUL.md"),
+    join(promptsDir, "IDENTITY.md"),
+    join(promptsDir, "USER.md"),
+    join(promptsDir, "SOUL.md"),
   ];
   const parts: string[] = [];
 
@@ -205,7 +207,7 @@ async function loadPrompts(): Promise<string> {
 
 export async function loadHeartbeatPromptTemplate(): Promise<string> {
   try {
-    const content = await Bun.file(HEARTBEAT_PROMPT_FILE).text();
+    const content = await Bun.file(join(getPromptsDir(), "heartbeat", "HEARTBEAT.md")).text();
     return content.trim();
   } catch {
     return "";

@@ -1,12 +1,46 @@
 import { join, isAbsolute } from "path";
 import { mkdir } from "fs/promises";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { normalizeTimezoneName, resolveTimezoneOffsetMinutes } from "./timezone";
+import { homedir } from "os";
 
 const HEARTBEAT_DIR = join(process.cwd(), ".claude", "claudeclaw");
 const SETTINGS_FILE = join(HEARTBEAT_DIR, "settings.json");
 const JOBS_DIR = join(HEARTBEAT_DIR, "jobs");
 const LOGS_DIR = join(HEARTBEAT_DIR, "logs");
+
+// --- Plugin root resolution ---
+// Resolve the plugin's root directory from the Claude plugin registry
+// instead of import.meta.dir, which breaks when the plugin system
+// caches code separately from non-JS assets (prompts, etc).
+
+let pluginRoot: string | null = null;
+
+function resolvePluginRootFromRegistry(): string | null {
+  const registryPath = join(homedir(), ".claude", "plugins", "installed_plugins.json");
+  try {
+    const raw = JSON.parse(readFileSync(registryPath, "utf-8"));
+    const entries = raw?.plugins?.["claudeclaw@local"];
+    if (Array.isArray(entries)) {
+      for (const entry of entries) {
+        if (entry.installPath && existsSync(join(entry.installPath, "prompts"))) {
+          return entry.installPath;
+        }
+      }
+    }
+  } catch {
+    // Registry not available — fall through to fallback
+  }
+  return null;
+}
+
+export function getPluginRoot(): string {
+  if (pluginRoot) return pluginRoot;
+  pluginRoot =
+    resolvePluginRootFromRegistry() ??
+    join(import.meta.dir, ".."); // fallback: src/ -> plugin root
+  return pluginRoot;
+}
 
 const DEFAULT_SETTINGS: Settings = {
   model: "",
