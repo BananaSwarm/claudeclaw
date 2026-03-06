@@ -214,10 +214,14 @@ export async function loadHeartbeatPromptTemplate(): Promise<string> {
   }
 }
 
-async function execClaude(name: string, prompt: string): Promise<RunResult> {
+interface ExecOptions {
+  isolated?: boolean;
+}
+
+async function execClaude(name: string, prompt: string, options: ExecOptions = {}): Promise<RunResult> {
   await mkdir(LOGS_DIR, { recursive: true });
 
-  const existing = await getSession();
+  const existing = options.isolated ? null : await getSession();
   const isNew = !existing;
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const logFile = join(LOGS_DIR, `${name}-${timestamp}.log`);
@@ -309,11 +313,11 @@ async function execClaude(name: string, prompt: string): Promise<RunResult> {
       const initEvent = events.find((e: any) => e.type === "system" && e.subtype === "init");
       sessionId = resultEvent?.session_id ?? initEvent?.session_id;
       stdout = resultEvent?.result ?? "";
-      // Save the real session ID from Claude Code
-      if (sessionId) {
+      // Save the real session ID from Claude Code (skip for isolated runs)
+      if (sessionId && !options.isolated) {
         await createSession(sessionId);
         console.log(`[${new Date().toLocaleTimeString()}] Session created: ${sessionId}`);
-      } else {
+      } else if (!sessionId) {
         console.error(`[${new Date().toLocaleTimeString()}] Claude returned no session_id`);
       }
     } catch (e) {
@@ -348,6 +352,10 @@ async function execClaude(name: string, prompt: string): Promise<RunResult> {
 
 export async function run(name: string, prompt: string): Promise<RunResult> {
   return enqueue(() => execClaude(name, prompt));
+}
+
+export async function runIsolated(name: string, prompt: string): Promise<RunResult> {
+  return execClaude(name, prompt, { isolated: true });
 }
 
 function prefixUserMessageWithClock(prompt: string): string {

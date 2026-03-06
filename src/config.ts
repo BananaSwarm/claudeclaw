@@ -55,6 +55,7 @@ const DEFAULT_SETTINGS: Settings = {
     enabled: false,
     interval: 15,
     prompt: "",
+    notifyConnectors: true,
     excludeWindows: [],
   },
   telegram: { token: "", allowedUserIds: [] },
@@ -74,6 +75,7 @@ export interface HeartbeatConfig {
   enabled: boolean;
   interval: number;
   prompt: string;
+  notifyConnectors: boolean;
   excludeWindows: HeartbeatExcludeWindow[];
 }
 
@@ -169,6 +171,7 @@ function parseSettings(raw: Record<string, any>): Settings {
       enabled: raw.heartbeat?.enabled ?? false,
       interval: raw.heartbeat?.interval ?? 15,
       prompt: raw.heartbeat?.prompt ?? "",
+      notifyConnectors: raw.heartbeat?.notifyConnectors ?? true,
       excludeWindows: parseExcludeWindows(raw.heartbeat?.excludeWindows),
     },
     telegram: {

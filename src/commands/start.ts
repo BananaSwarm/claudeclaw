@@ -1,7 +1,7 @@
 import { writeFile, unlink, mkdir } from "fs/promises";
 import { join } from "path";
 import { fileURLToPath } from "url";
-import { run, runUserMessage, bootstrap, ensureProjectClaudeMd, loadHeartbeatPromptTemplate } from "../runner";
+import { run, runIsolated, runUserMessage, bootstrap, ensureProjectClaudeMd, loadHeartbeatPromptTemplate } from "../runner";
 import { writeState, type StateData } from "../statusline";
 import { cronMatches, nextCronMatch } from "../cron";
 import { clearJobSchedule, loadJobs } from "../jobs";
@@ -326,6 +326,8 @@ export async function start(args: string[] = []) {
   if (settings.additionalDirs.length > 0)
     console.log(`  Additional dirs: ${settings.additionalDirs.join(", ")}`);
   console.log(`  Heartbeat: ${settings.heartbeat.enabled ? `every ${settings.heartbeat.interval}m` : "disabled"}`);
+  if (settings.heartbeat.enabled && !settings.heartbeat.notifyConnectors)
+    console.log(`  Heartbeat notifications: off (results stay in logs only)`);
   console.log(`  Web UI: ${webEnabled ? `http://${settings.web.host}:${webPort}` : "disabled"}`);
   if (debugFlag) console.log("  Debug: enabled");
   console.log(`  Jobs loaded: ${jobs.length}`);
@@ -404,6 +406,10 @@ export async function start(args: string[] = []) {
             }
           if (typeof patch.prompt === "string" && currentSettings.heartbeat.prompt !== patch.prompt) {
             currentSettings.heartbeat.prompt = patch.prompt;
+            changed = true;
+          }
+          if (typeof patch.notifyConnectors === "boolean" && currentSettings.heartbeat.notifyConnectors !== patch.notifyConnectors) {
+            currentSettings.heartbeat.notifyConnectors = patch.notifyConnectors;
             changed = true;
           }
           if (Array.isArray(patch.excludeWindows)) {
@@ -515,7 +521,7 @@ export async function start(args: string[] = []) {
           return run("heartbeat", mergedPrompt);
         })
         .then((r) => {
-          if (r) forwardToTelegram("", r);
+          if (r && currentSettings.heartbeat.notifyConnectors) forwardToTelegram("", r);
         });
       nextHeartbeatAt = nextAllowedHeartbeatAt(
         currentSettings.heartbeat,
@@ -564,6 +570,7 @@ export async function start(args: string[] = []) {
         newSettings.heartbeat.enabled !== currentSettings.heartbeat.enabled ||
         newSettings.heartbeat.interval !== currentSettings.heartbeat.interval ||
         newSettings.heartbeat.prompt !== currentSettings.heartbeat.prompt ||
+        newSettings.heartbeat.notifyConnectors !== currentSettings.heartbeat.notifyConnectors ||
         newSettings.timezoneOffsetMinutes !== currentSettings.timezoneOffsetMinutes ||
         newSettings.timezone !== currentSettings.timezone ||
         JSON.stringify(newSettings.heartbeat.excludeWindows) !== JSON.stringify(currentSettings.heartbeat.excludeWindows);
@@ -642,7 +649,7 @@ export async function start(args: string[] = []) {
     for (const job of currentJobs) {
       if (cronMatches(job.schedule, now, currentSettings.timezoneOffsetMinutes)) {
         resolvePrompt(job.prompt)
-          .then((prompt) => run(job.name, prompt))
+          .then((prompt) => runIsolated(job.name, prompt))
           .then((r) => {
             if (job.notify === false) return;
             if (job.notify === "error" && r.exitCode === 0) return;
